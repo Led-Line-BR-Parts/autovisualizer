@@ -695,44 +695,52 @@
             }
         }
 
-        async function generateVisualization() {
-            if (!selectedProduct || !carImageData) {
-                showNotification('❌ Selecione produto e foto do carro', 'error');
-                return;
-            }
+       async function generateVisualization() {
+    if (!selectedProduct || !carImageData) {
+        showNotification('❌ Selecione produto e foto do carro', 'error');
+        return;
+    }
 
-            // Mostrar loading
-            document.getElementById('loadingSection').style.display = 'block';
-            document.getElementById('resultSection').style.display = 'none';
+    // Mostrar loading
+    document.getElementById('loadingSection').style.display = 'block';
+    document.getElementById('resultSection').style.display = 'none';
 
-            try {
-                // Aqui você faria a chamada real para OpenAI
-                // const result = await callOpenAIAPI(carImageData, selectedProduct);
-                
-                // Simulação
-                await new Promise(resolve => setTimeout(resolve, 4000));
-                
-                // Mostrar resultado
-                const resultImage = `https://via.placeholder.com/800x600/27ae60/white?text=Seu+Carro+com+${selectedProduct.name.replace(/\s+/g, '+')}`;
-                document.getElementById('resultImage').src = resultImage;
-                
-                document.getElementById('loadingSection').style.display = 'none';
-                document.getElementById('resultSection').style.display = 'block';
-                
-                // Scroll para resultado
-                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
-                
-                showNotification('🎉 Visualização criada com sucesso!');
-                
-                // Analytics (implementar)
-                trackVisualizationGenerated(selectedProduct.name);
+    try {
+        // Chamar API do backend
+        const response = await fetch('/api/generate-visualization', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                carImageBase64: carImageData,
+                productName: selectedProduct.name,
+                productDescription: selectedProduct.description
+            })
+        });
 
-            } catch (error) {
-                console.error('Erro:', error);
-                document.getElementById('loadingSection').style.display = 'none';
-                showNotification('❌ Erro ao gerar visualização. Tente novamente.', 'error');
-            }
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error);
         }
+        
+        // Mostrar resultado
+        document.getElementById('resultImage').src = result.resultImage;
+        document.getElementById('loadingSection').style.display = 'none';
+        document.getElementById('resultSection').style.display = 'block';
+        
+        // Scroll para resultado
+        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+        
+        showNotification('🎉 Visualização criada com sucesso!');
+
+    } catch (error) {
+        console.error('Erro:', error);
+        document.getElementById('loadingSection').style.display = 'none';
+        showNotification('❌ Erro: ' + error.message, 'error');
+    }
+}
 
         function downloadResult() {
             const link = document.createElement('a');
