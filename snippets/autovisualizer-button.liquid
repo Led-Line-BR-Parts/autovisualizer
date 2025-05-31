@@ -1,0 +1,113 @@
+<!-- ARQUIVO: snippets/autovisualizer-button.liquid -->
+{% comment %}
+  Snippet para adicionar botão do AutoVisualizer nas páginas de produto
+  Para usar: {% include 'autovisualizer-button' %}
+{% endcomment %}
+
+<div class="autovisualizer-container" style="margin: 20px 0;">
+  <button 
+    id="autovisualizerBtn" 
+    class="btn autovisualizer-btn"
+    onclick="openAutoVisualizer()"
+    style="
+      background: linear-gradient(135deg, #3498db, #2980b9);
+      color: white;
+      border: none;
+      padding: 15px 25px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+      width: 100%;
+      margin: 10px 0;
+    "
+    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(52, 152, 219, 0.4)'"
+    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 5px 15px rgba(52, 152, 219, 0.3)'"
+  >
+    🚗 Visualize no Seu Carro
+  </button>
+  
+  <p style="
+    text-align: center; 
+    font-size: 12px; 
+    color: #7f8c8d; 
+    margin-top: 8px;
+  ">
+    Veja como este produto fica no seu carro usando IA
+  </p>
+</div>
+
+<script>
+  function openAutoVisualizer() {
+    // Dados do produto atual
+    const productData = {
+      name: "{{ product.title | escape }}",
+      image: "{{ product.featured_image | img_url: 'master' }}",
+      description: "{{ product.description | strip_html | truncate: 150 | escape }}",
+      price: "{{ product.price | money }}",
+      url: "{{ shop.url }}{{ product.url }}",
+      vendor: "{{ product.vendor | escape }}"
+    };
+
+    // URL do seu aplicativo AutoVisualizer
+    const appUrl = "https://autovisualizer.com"; // SUBSTITUIR pela sua URL real
+    
+    // Construir URL com parâmetros
+    const visualizerUrl = `${appUrl}?` + 
+      `product_name=${encodeURIComponent(productData.name)}&` +
+      `product_img=${encodeURIComponent(productData.image)}&` +
+      `product_desc=${encodeURIComponent(productData.description)}&` +
+      `source_url=${encodeURIComponent(productData.url)}&` +
+      `utm_source=shopify&utm_medium=product_page&utm_campaign=visualizer`;
+
+    // Abrir em nova aba
+    window.open(visualizerUrl, '_blank');
+    
+    // Analytics (opcional)
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'visualizer_click', {
+        'product_name': productData.name,
+        'product_id': '{{ product.id }}',
+        'source': 'product_page'
+      });
+    }
+  }
+</script>
+
+<!-- CSS adicional para responsividade -->
+<style>
+  @media (max-width: 768px) {
+    .autovisualizer-btn {
+      font-size: 14px !important;
+      padding: 12px 20px !important;
+    }
+  }
+  
+  .autovisualizer-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4) !important;
+  }
+  
+  .autovisualizer-btn:active {
+    transform: translateY(0) !important;
+  }
+</style>
+
+{% comment %}
+  INSTALAÇÃO:
+  
+  1. Adicione este snippet em: themes/[seu-tema]/snippets/autovisualizer-button.liquid
+  
+  2. No template da página de produto (templates/product.liquid), adicione:
+     {% include 'autovisualizer-button' %}
+     
+  3. Ou adicione diretamente no product-form.liquid:
+     {% include 'autovisualizer-button' %}
+     
+  4. Para produtos específicos, use:
+     {% if product.type == 'Automotivo' %}
+       {% include 'autovisualizer-button' %}
+     {% endif %}
+{% endcomment %}
