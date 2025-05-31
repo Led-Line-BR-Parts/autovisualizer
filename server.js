@@ -1,10 +1,9 @@
-// server.js - Backend Node.js para o AutoVisualizer
+// server.js - Versão corrigida para Vercel
 const express = require('express');
 const cors = require('cors');
-const multer = require('multer');
-const sharp = require('sharp');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -12,28 +11,19 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: ['https://autovisualizer.com', 'https://sualojaaqui.myshopify.com'], // Adicione seus domínios
+  origin: true,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 
-// Configuração do multer para upload de imagens
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Apenas imagens são permitidas'));
-    }
-  }
-});
+// Servir arquivos estáticos
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Configuração OpenAI
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Rota principal
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Função para extrair dados de produto de URLs
 async function extractProductFromUrl(url) {
@@ -41,7 +31,8 @@ async function extractProductFromUrl(url) {
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      },
+      timeout: 10000
     });
     
     const $ = cheerio.load(response.data);
@@ -54,100 +45,100 @@ async function extractProductFromUrl(url) {
     } else if (url.includes('mercadolivre') || url.includes('mercadolibre')) {
       productData = extractMercadoLivreProduct($);
     } else {
-      // Extração genérica
       productData = extractGenericProduct($);
     }
     
     return productData;
     
   } catch (error) {
-    console.error('Erro ao extrair produto:', error);
+    console.error('Erro ao extrair produto:', error.message);
     throw new Error('Não foi possível extrair dados do produto');
   }
 }
 
 function extractShopifyProduct($) {
   return {
-    name: $('h1.product-single__title, .product__title, h1[data-product-title]').first().text().trim(),
-    description: $('.product-single__description, .product__description, .rte').first().text().trim().substring(0, 300),
-    image: $('img.product-single__photo, .product__photo img, .product-featured-image').first().attr('src'),
-    price: $('.product-single__price, .price, .product__price').first().text().trim(),
-    vendor: $('.product-single__vendor, .product__vendor').first().text().trim()
+    name: $('h1.product-single__title, .product__title, h1[data-product-title]').first().text().trim() || 'Produto',
+    description: $('.product-single__description, .product__description, .rte').first().text().trim().substring(0, 300) || 'Descrição do produto',
+    image: $('img.product-single__photo, .product__photo img, .product-featured-image').first().attr('src') || '',
+    price: $('.product-single__price, .price, .product__price').first().text().trim() || '',
+    vendor: $('.product-single__vendor, .product__vendor').first().text().trim() || ''
   };
 }
 
 function extractMercadoLivreProduct($) {
   return {
-    name: $('h1.x-item-title-label, .it-ttl').first().text().trim(),
-    description: $('.item-description, .item-description-text').first().text().trim().substring(0, 300),
-    image: $('img.gallery-image, .gallery-image-container img').first().attr('src'),
-    price: $('.price-tag-fraction, .notranslate').first().text().trim(),
-    vendor: $('.seller-info__title, .profile-info-name').first().text().trim()
+    name: $('h1.x-item-title-label, .it-ttl').first().text().trim() || 'Produto',
+    description: $('.item-description, .item-description-text').first().text().trim().substring(0, 300) || 'Descrição do produto',
+    image: $('img.gallery-image, .gallery-image-container img').first().attr('src') || '',
+    price: $('.price-tag-fraction, .notranslate').first().text().trim() || '',
+    vendor: $('.seller-info__title, .profile-info-name').first().text().trim() || ''
   };
 }
 
 function extractGenericProduct($) {
   return {
-    name: $('h1, .product-title, .title').first().text().trim(),
-    description: $('meta[name="description"]').attr('content') || $('.description').first().text().trim().substring(0, 300),
-    image: $('meta[property="og:image"]').attr('content') || $('img').first().attr('src'),
-    price: $('.price, .cost, .valor').first().text().trim(),
+    name: $('h1, .product-title, .title').first().text().trim() || 'Produto',
+    description: $('meta[name="description"]').attr('content') || $('.description').first().text().trim().substring(0, 300) || 'Descrição do produto',
+    image: $('meta[property="og:image"]').attr('content') || $('img').first().attr('src') || '',
+    price: $('.price, .cost, .valor').first().text().trim() || '',
     vendor: $('meta[property="og:site_name"]').attr('content') || ''
   };
 }
 
-// Função para chamar a API do OpenAI
-async function generateCarVisualization(carImageBuffer, productImageUrl, productName) {
+// Função para chamar a API do OpenAI (simplificada para Vercel)
+async function generateCarVisualization(carImageBase64, productName, productDescription) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('API Key da OpenAI não configurada');
+  }
+
   try {
-    // Converter imagem do carro para base64
-    const carImageBase64 = carImageBuffer.toString('base64');
+    // Remover prefixo data:image se existir
+    const cleanBase64 = carImageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
     
-    // Prompt otimizado para diferentes tipos de produtos
-    const prompts = {
-      'spoiler': `Adicione um spoiler traseiro esportivo neste carro, posicionado naturalmente na parte traseira. Mantenha a iluminação, sombras e perspectiva originais. O spoiler deve parecer profissionalmente instalado.`,
-      'rodas': `Substitua as rodas deste carro pelas rodas esportivas mostradas na imagem de referência. Mantenha o tamanho proporcional e a perspectiva correta. As rodas devem parecer naturalmente instaladas.`,
-      'adesivos': `Aplique os adesivos/decalques mostrados na imagem de referência nas laterais deste carro. Os adesivos devem seguir as curvas naturais da carroceria e ter aparência realística.`,
-      'escapamento': `Adicione o escapamento esportivo mostrado na imagem de referência na parte traseira inferior deste carro. O escapamento deve parecer profissionalmente instalado.`,
-      'default': `Adicione o produto automotivo "${productName}" neste carro de forma realística e natural, mantendo a iluminação, sombras e perspectiva originais. O produto deve parecer profissionalmente instalado.`
-    };
+    const prompt = `Transform this car image by adding ${productName} (${productDescription}) in a realistic and professional way. The modification should look natural, maintaining the original lighting, shadows, and perspective. The automotive product should appear properly installed on the vehicle.`;
     
-    // Detectar tipo de produto
-    const productType = detectProductType(productName);
-    const prompt = prompts[productType] || prompts.default;
+    console.log('Enviando para OpenAI:', { productName, promptLength: prompt.length });
     
     const response = await axios.post('https://api.openai.com/v1/images/edits', {
-      image: carImageBase64,
+      image: cleanBase64,
       prompt: prompt,
       n: 1,
-      size: "1024x1024",
-      response_format: "url"
+      size: "1024x1024"
     }, {
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 30000
     });
     
+    console.log('Resposta OpenAI recebida');
     return response.data.data[0].url;
     
   } catch (error) {
-    console.error('Erro OpenAI:', error);
-    throw new Error('Erro ao processar imagem com IA');
+    console.error('Erro OpenAI detalhado:', error.response?.data || error.message);
+    
+    if (error.response?.status === 401) {
+      throw new Error('API Key da OpenAI inválida');
+    } else if (error.response?.status === 429) {
+      throw new Error('Limite de uso da OpenAI atingido');
+    } else {
+      throw new Error('Erro ao processar imagem com IA: ' + (error.response?.data?.error?.message || error.message));
+    }
   }
 }
 
-function detectProductType(productName) {
-  const name = productName.toLowerCase();
-  
-  if (name.includes('spoiler') || name.includes('aerofólio')) return 'spoiler';
-  if (name.includes('roda') || name.includes('aro') || name.includes('jante')) return 'rodas';
-  if (name.includes('adesivo') || name.includes('decalque') || name.includes('faixa')) return 'adesivos';
-  if (name.includes('escapamento') || name.includes('ponteira')) return 'escapamento';
-  
-  return 'default';
-}
-
 // ROTAS DA API
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    hasOpenAI: !!process.env.OPENAI_API_KEY
+  });
+});
 
 // Rota para extrair produto de URL
 app.post('/api/extract-product', async (req, res) => {
@@ -158,6 +149,7 @@ app.post('/api/extract-product', async (req, res) => {
       return res.status(400).json({ error: 'URL é obrigatória' });
     }
     
+    console.log('Extraindo produto de:', url);
     const productData = await extractProductFromUrl(url);
     
     res.json({
@@ -166,6 +158,7 @@ app.post('/api/extract-product', async (req, res) => {
     });
     
   } catch (error) {
+    console.error('Erro na extração:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -173,33 +166,27 @@ app.post('/api/extract-product', async (req, res) => {
   }
 });
 
-// Rota para gerar visualização
-app.post('/api/generate-visualization', upload.single('carImage'), async (req, res) => {
+// Rota para gerar visualização (sem multer - usando base64 direto)
+app.post('/api/generate-visualization', async (req, res) => {
   try {
-    const { productName, productImageUrl } = req.body;
-    const carImageBuffer = req.file.buffer;
+    const { carImageBase64, productName, productDescription } = req.body;
     
-    if (!carImageBuffer || !productName) {
+    if (!carImageBase64 || !productName) {
       return res.status(400).json({ 
-        error: 'Imagem do carro e nome do produto são obrigatórios' 
+        error: 'Imagem do carro (base64) e nome do produto são obrigatórios' 
       });
     }
     
-    // Redimensionar imagem do carro se necessário
-    const processedCarImage = await sharp(carImageBuffer)
-      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
+    console.log('Iniciando geração de visualização para:', productName);
     
     // Gerar visualização com OpenAI
     const resultImageUrl = await generateCarVisualization(
-      processedCarImage, 
-      productImageUrl, 
-      productName
+      carImageBase64, 
+      productName,
+      productDescription || 'produto automotivo'
     );
     
-    // Log para analytics
-    console.log(`Visualização gerada: ${productName} - ${new Date().toISOString()}`);
+    console.log('Visualização gerada com sucesso');
     
     res.json({
       success: true,
@@ -208,7 +195,7 @@ app.post('/api/generate-visualization', upload.single('carImage'), async (req, r
     });
     
   } catch (error) {
-    console.error('Erro na visualização:', error);
+    console.error('Erro na visualização:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -216,40 +203,23 @@ app.post('/api/generate-visualization', upload.single('carImage'), async (req, r
   }
 });
 
-// Rota para servir o frontend
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
-
 // Middleware de tratamento de erros
 app.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Arquivo muito grande. Máximo 10MB.' });
-    }
-  }
-  
-  console.error('Erro:', error);
-  res.status(500).json({ error: 'Erro interno do servidor' });
+  console.error('Erro geral:', error);
+  res.status(500).json({ 
+    error: 'Erro interno do servidor',
+    details: process.env.NODE_ENV === 'development' ? error.message : undefined
+  });
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`🚀 AutoVisualizer rodando na porta ${PORT}`);
-  console.log(`🌐 Acesse: http://localhost:${PORT}`);
-});
-
-// Função para atualizar o frontend com dados reais
-function updateFrontendAPI() {
-  // Substitua as chamadas simuladas no frontend por estas URLs reais:
-  
-  // Para extrair produto de URL:
-  // POST /api/extract-product
-  // Body: { "url": "https://loja.com/produto" }
-  
-  // Para gerar visualização:
-  // POST /api/generate-visualization
-  // FormData: { carImage: File, productName: string, productImageUrl: string }
+// Para Vercel, exportar o app
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  // Para desenvolvimento local
+  app.listen(PORT, () => {
+    console.log(`🚀 AutoVisualizer rodando na porta ${PORT}`);
+    console.log(`🌐 Acesse: http://localhost:${PORT}`);
+    console.log(`🔑 OpenAI configurada: ${!!process.env.OPENAI_API_KEY}`);
+  });
 }
-
-module.exports = app;
