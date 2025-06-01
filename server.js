@@ -585,37 +585,180 @@ function createAdvancedPrompt(carDescription, productType, productName, productD
 
 // ROTAS DA API
 
-// Rota para extrair produto de URL
+// Rota para extrair produto de URL com debug completo
 app.post('/api/extract-product', async (req, res) => {
   try {
     const { url } = req.body;
     
+    console.log('🔍 Iniciando extração de produto...');
+    console.log('📝 URL recebida:', url);
+    console.log('📝 Tipo da URL:', typeof url);
+    console.log('📝 Request body completo:', req.body);
+    
     if (!url) {
+      console.log('❌ URL não fornecida');
       return res.status(400).json({ error: 'URL é obrigatória' });
     }
     
     // Validar URL
     try {
-      new URL(url);
-    } catch {
-      return res.status(400).json({ error: 'URL inválida' });
+      const urlObj = new URL(url);
+      console.log('✅ URL válida:', {
+        protocol: urlObj.protocol,
+        hostname: urlObj.hostname,
+        pathname: urlObj.pathname
+      });
+    } catch (urlError) {
+      console.log('❌ URL inválida:', urlError.message);
+      return res.status(400).json({ error: 'URL inválida: ' + urlError.message });
     }
     
-    console.log('🔍 Extraindo produto de:', url);
-    const productData = await extractProductFromUrl(url);
+    console.log('🌐 Iniciando requisição HTTP...');
     
-    console.log('✅ Produto extraído:', productData.name);
+    // Fazer requisição com headers completos
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none'
+      },
+      timeout: 25000,
+      maxRedirects: 5,
+      validateStatus: function (status) {
+        return status >= 200 && status < 400;
+      }
+    });
+    
+    console.log('✅ Resposta HTTP recebida:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers['content-type'],
+      contentLength: response.headers['content-length'],
+      dataType: typeof response.data,
+      dataLength: response.data ? response.data.length : 0,
+      firstChars: response.data ? response.data.substring(0, 100) : 'N/A'
+    });
+    
+    // Verificar se é HTML
+    const contentType = response.headers['content-type'] || '';
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      console.log('❌ Content-Type não é HTML:', contentType);
+      return res.status(400).json({ 
+        error: `URL não retorna uma página HTML. Content-Type: ${contentType}` 
+      });
+    }
+    
+    // Verificar se os dados são string
+    if (typeof response.data !== 'string') {
+      console.log('❌ Dados não são string:', typeof response.data);
+      return res.status(400).json({ 
+        error: 'Resposta não é texto HTML válido' 
+      });
+    }
+    
+    console.log('🔍 Carregando HTML com Cheerio...');
+    const $ = cheerio.load(response.data);
+    console.log('✅ HTML carregado com sucesso');
+    
+    let productData = {};
+    
+    // Detecção de plataforma
+    if (url.includes('shopify') || url.includes('myshopify')) {
+      console.log('🛒 Detectada loja Shopify');
+      productData = extractShopifyProduct($, url);
+    } else if (url.includes('mercadolivre') || url.includes('mercadolibre')) {
+      console.log('🏪 Detectado Mercado Livre');
+      productData = extractMercadoLivreProduct($, url);
+    } else if (url.includes('amazon')) {
+      console.log('📦 Detectada Amazon');
+      productData = extractAmazonProduct($, url);
+    } else {
+      console.log('🌐 Usando extração genérica');
+      productData = extractGenericProduct($, url);
+    }
+    
+    console.log('🎯 Dados extraídos:', {
+      name: productData.name,
+      hasImage: !!productData.image,
+      hasDescription: !!productData.description,
+      imageUrl: productData.image?.substring(0, 100) + '...'
+    });
+    
+    // Validação final
+    if (!productData.name || productData.name.length < 3) {
+      console.log('❌ Nome do produto inválido:', productData.name);
+      return res.status(400).json({ 
+        error: 'Não foi possível extrair o nome do produto. Verifique se a URL é de uma página de produto válida.' 
+      });
+    }
+    
+    console.log('✅ Extração bem-sucedida');
     
     res.json({
       success: true,
-      product: productData
+      product: productData,
+      debug: {
+        url: url,
+        platform: url.includes('shopify') ? 'shopify' : 
+                 url.includes('mercadolivre') ? 'mercadolivre' : 
+                 url.includes('amazon') ? 'amazon' : 'generic',
+        extractedFields: {
+          name: !!productData.name,
+          image: !!productData.image,
+          description: !!productData.description
+        }
+      }
     });
     
   } catch (error) {
-    console.error('❌ Erro na extração:', error.message);
+    console.error('❌ Erro completo na extração:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        headers: error.response.headers,
+        data: typeof error.response.data === 'string' ? 
+              error.response.data.substring(0, 200) + '...' : 
+              typeof error.response.data
+      } : 'Sem response'
+    });
+    
+    // Mensagens de erro específicas
+    let userMessage = '';
+    
+    if (error.code === 'ENOTFOUND') {
+      userMessage = 'URL não encontrada. Verifique se o endereço está correto.';
+    } else if (error.code === 'ETIMEDOUT') {
+      userMessage = 'Timeout ao carregar a página. Tente novamente em alguns segundos.';
+    } else if (error.response?.status === 404) {
+      userMessage = 'Página não encontrada (404). Verifique se a URL do produto está correta.';
+    } else if (error.response?.status === 403) {
+      userMessage = 'Acesso negado pelo site. Tente copiar a URL diretamente da página do produto.';
+    } else if (error.response?.status >= 500) {
+      userMessage = 'Erro no servidor do site. Tente novamente em alguns minutos.';
+    } else if (error.message.includes('JSON')) {
+      userMessage = 'Erro interno de processamento. Verifique se a URL é de uma página de produto válida.';
+    } else {
+      userMessage = `Erro ao processar: ${error.message}`;
+    }
+    
     res.status(500).json({
       success: false,
-      error: error.message
+      error: userMessage,
+      debug: process.env.NODE_ENV === 'development' ? {
+        originalError: error.message,
+        errorCode: error.code,
+        statusCode: error.response?.status
+      } : undefined
     });
   }
 });
@@ -663,6 +806,47 @@ app.post('/api/generate-visualization', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Rota para testar extração (debug)
+app.get('/api/test-extraction', async (req, res) => {
+  try {
+    const testUrl = req.query.url || 'https://httpbin.org/html';
+    
+    console.log('🧪 Testando extração com URL:', testUrl);
+    
+    const response = await axios.get(testUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 10000
+    });
+    
+    res.json({
+      success: true,
+      debug: {
+        url: testUrl,
+        status: response.status,
+        contentType: response.headers['content-type'],
+        dataType: typeof response.data,
+        dataLength: response.data ? response.data.length : 0,
+        firstChars: response.data ? response.data.substring(0, 200) : 'N/A',
+        isString: typeof response.data === 'string',
+        cheerioTest: typeof response.data === 'string' ? 'OK' : 'FAIL'
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      debug: {
+        errorType: error.name,
+        errorCode: error.code,
+        hasResponse: !!error.response
+      }
     });
   }
 });
