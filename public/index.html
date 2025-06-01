@@ -491,18 +491,59 @@
                 },
                 body: JSON.stringify({ url: url })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response headers:', response.headers);
+                
+                // Verificar se a resposta é JSON válida
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error('❌ Response error text:', text);
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    });
+                }
+                
+                // Verificar content-type
+                const contentType = response.headers.get('content-type');
+                console.log('📡 Content-Type:', contentType);
+                
+                if (!contentType || !contentType.includes('application/json')) {
+                    return response.text().then(text => {
+                        console.error('❌ Response is not JSON:', text.substring(0, 200));
+                        throw new Error('Servidor retornou resposta inválida (não JSON)');
+                    });
+                }
+                
+                return response.json();
+            })
             .then(data => {
+                console.log('✅ Dados recebidos:', data);
+                
                 if (data.success) {
                     selectProductData(data.product);
                     showNotification('✅ Produto carregado com sucesso!');
                 } else {
-                    throw new Error(data.error);
+                    throw new Error(data.error || 'Erro desconhecido');
                 }
             })
             .catch(error => {
-                console.error('Erro:', error);
-                showNotification('❌ Erro ao carregar produto: ' + error.message, 'error');
+                console.error('❌ Erro completo:', error);
+                console.error('❌ Error stack:', error.stack);
+                
+                let errorMessage = error.message;
+                
+                // Tratar erros específicos
+                if (errorMessage.includes('JSON.parse')) {
+                    errorMessage = 'Erro interno do servidor. Tente novamente em alguns segundos.';
+                } else if (errorMessage.includes('NetworkError') || errorMessage.includes('fetch')) {
+                    errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+                } else if (errorMessage.includes('404')) {
+                    errorMessage = 'Página não encontrada. Verifique se a URL está correta.';
+                } else if (errorMessage.includes('403')) {
+                    errorMessage = 'Acesso negado. Tente usar a URL direta do produto.';
+                }
+                
+                showNotification('❌ Erro ao carregar produto: ' + errorMessage, 'error');
             });
         }
 
@@ -598,6 +639,10 @@
             document.getElementById('resultSection').style.display = 'none';
 
             try {
+                console.log('🎨 Iniciando geração de visualização...');
+                console.log('📦 Produto:', selectedProduct.name);
+                console.log('📸 Imagem do carro:', carImageData ? 'OK' : 'MISSING');
+                
                 const response = await fetch('/api/generate-visualization', {
                     method: 'POST',
                     headers: {
@@ -610,10 +655,31 @@
                     })
                 });
 
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response ok:', response.ok);
+
+                // Verificar se a resposta é válida
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Error response:', errorText);
+                    throw new Error(`Erro HTTP ${response.status}: ${errorText}`);
+                }
+
+                // Verificar content-type
+                const contentType = response.headers.get('content-type');
+                console.log('📡 Content-Type:', contentType);
+                
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('❌ Non-JSON response:', responseText.substring(0, 300));
+                    throw new Error('Servidor retornou resposta inválida');
+                }
+
                 const result = await response.json();
+                console.log('✅ Resultado recebido:', result);
 
                 if (!result.success) {
-                    throw new Error(result.error);
+                    throw new Error(result.error || 'Erro desconhecido na geração');
                 }
                 
                 // Mostrar resultado
@@ -627,9 +693,26 @@
                 showNotification('🎉 Visualização LED Line criada com sucesso!');
 
             } catch (error) {
-                console.error('Erro:', error);
+                console.error('❌ Erro completo:', error);
+                console.error('❌ Error name:', error.name);
+                console.error('❌ Error message:', error.message);
+                
                 document.getElementById('loadingSection').style.display = 'none';
-                showNotification('❌ Erro: ' + error.message, 'error');
+                
+                let userMessage = error.message;
+                
+                // Mensagens mais amigáveis
+                if (userMessage.includes('JSON.parse')) {
+                    userMessage = 'Erro interno do servidor. Tente novamente.';
+                } else if (userMessage.includes('NetworkError') || userMessage.includes('fetch')) {
+                    userMessage = 'Erro de conexão. Verifique sua internet.';
+                } else if (userMessage.includes('timeout')) {
+                    userMessage = 'Processamento demorou muito. Tente novamente.';
+                } else if (userMessage.includes('API Key')) {
+                    userMessage = 'Erro de configuração do servidor. Contate o suporte.';
+                }
+                
+                showNotification('❌ Erro: ' + userMessage, 'error');
             }
         }
 
