@@ -35,24 +35,58 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Função para limpar URL de parâmetros desnecessários
+function cleanProductUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // Manter apenas parâmetros essenciais para produtos
+    const allowedParams = ['variant', 'color', 'size'];
+    const cleanParams = new URLSearchParams();
+    
+    for (const [key, value] of urlObj.searchParams) {
+      if (allowedParams.includes(key.toLowerCase())) {
+        cleanParams.set(key, value);
+      }
+    }
+    
+    // Construir URL limpa
+    const cleanUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}`;
+    const paramString = cleanParams.toString();
+    
+    return paramString ? `${cleanUrl}?${paramString}` : cleanUrl;
+  } catch (error) {
+    console.log('⚠️ Erro ao limpar URL, usando original:', error.message);
+    return url;
+  }
+}
 // Função para extrair dados de produto de URLs
 async function extractProductFromUrl(url) {
   try {
-    console.log(`🔍 Tentando extrair produto de: ${url}`);
+    // Limpar URL de parâmetros desnecessários
+    const cleanUrl = cleanProductUrl(url);
+    console.log(`🔍 URL original: ${url}`);
+    console.log(`🧹 URL limpa: ${cleanUrl}`);
     
-    const response = await axios.get(url, {
+    console.log(`🌐 Tentando extrair produto de: ${cleanUrl}`);
+    
+    const response = await axios.get(cleanUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
         'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Referer': 'https://google.com/'
       },
-      timeout: 20000,
+      timeout: 25000,
       maxRedirects: 5,
       validateStatus: function (status) {
-        return status >= 200 && status < 400; // Aceitar redirects
+        return status >= 200 && status < 400;
       }
     });
     
@@ -70,18 +104,18 @@ async function extractProductFromUrl(url) {
     let productData = {};
     
     // Detecção específica por plataforma
-    if (url.includes('shopify') || url.includes('myshopify')) {
-      console.log('🛒 Detectada loja Shopify');
-      productData = extractShopifyProduct($, url);
-    } else if (url.includes('mercadolivre') || url.includes('mercadolibre')) {
+    if (cleanUrl.includes('shopify') || cleanUrl.includes('myshopify') || cleanUrl.includes('ledlinebrparts.com')) {
+      console.log('🛒 Detectada loja Shopify/LED Line');
+      productData = extractShopifyProduct($, cleanUrl);
+    } else if (cleanUrl.includes('mercadolivre') || cleanUrl.includes('mercadolibre')) {
       console.log('🏪 Detectado Mercado Livre');
-      productData = extractMercadoLivreProduct($, url);
-    } else if (url.includes('amazon')) {
+      productData = extractMercadoLivreProduct($, cleanUrl);
+    } else if (cleanUrl.includes('amazon')) {
       console.log('📦 Detectada Amazon');
-      productData = extractAmazonProduct($, url);
+      productData = extractAmazonProduct($, cleanUrl);
     } else {
       console.log('🌐 Usando extração genérica');
-      productData = extractGenericProduct($, url);
+      productData = extractGenericProduct($, cleanUrl);
     }
     
     console.log('🎯 Dados extraídos:', {
