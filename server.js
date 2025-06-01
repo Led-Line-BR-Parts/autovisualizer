@@ -38,12 +38,32 @@ app.get('/api/health', (req, res) => {
 // Função para extrair dados de produto de URLs
 async function extractProductFromUrl(url) {
   try {
+    console.log(`🔍 Tentando extrair produto de: ${url}`);
+    
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       },
-      timeout: 15000
+      timeout: 20000,
+      maxRedirects: 5,
+      validateStatus: function (status) {
+        return status >= 200 && status < 400; // Aceitar redirects
+      }
     });
+    
+    // Verificar se a resposta é HTML
+    const contentType = response.headers['content-type'] || '';
+    if (!contentType.includes('text/html')) {
+      throw new Error('URL não retorna uma página HTML válida');
+    }
+    
+    console.log(`✅ Página carregada. Content-Type: ${contentType}`);
+    console.log(`📄 Tamanho da resposta: ${response.data.length} caracteres`);
     
     const $ = cheerio.load(response.data);
     
@@ -51,29 +71,64 @@ async function extractProductFromUrl(url) {
     
     // Detecção específica por plataforma
     if (url.includes('shopify') || url.includes('myshopify')) {
-      productData = extractShopifyProduct($);
+      console.log('🛒 Detectada loja Shopify');
+      productData = extractShopifyProduct($, url);
     } else if (url.includes('mercadolivre') || url.includes('mercadolibre')) {
-      productData = extractMercadoLivreProduct($);
+      console.log('🏪 Detectado Mercado Livre');
+      productData = extractMercadoLivreProduct($, url);
     } else if (url.includes('amazon')) {
-      productData = extractAmazonProduct($);
+      console.log('📦 Detectada Amazon');
+      productData = extractAmazonProduct($, url);
     } else {
-      productData = extractGenericProduct($);
+      console.log('🌐 Usando extração genérica');
+      productData = extractGenericProduct($, url);
     }
+    
+    console.log('🎯 Dados extraídos:', {
+      name: productData.name?.substring(0, 50) + '...',
+      hasImage: !!productData.image,
+      hasDescription: !!productData.description
+    });
     
     // Validar se conseguiu extrair dados mínimos
     if (!productData.name || productData.name.length < 3) {
-      throw new Error('Não foi possível extrair informações válidas do produto');
+      throw new Error('Não foi possível extrair o nome do produto. Verifique se a URL está correta e se é uma página de produto válida.');
     }
+    
+    // Garantir que tenha pelo menos dados básicos
+    productData.name = productData.name || 'Produto LED Line';
+    productData.description = productData.description || 'Produto automotivo LED de alta qualidade da LED Line BR Parts';
+    productData.vendor = productData.vendor || 'LED Line BR Parts';
     
     return productData;
     
   } catch (error) {
-    console.error('Erro ao extrair produto:', error.message);
-    throw new Error(`Erro ao carregar produto: ${error.message}`);
+    console.error('❌ Erro detalhado ao extrair produto:', {
+      message: error.message,
+      url: url,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    
+    // Mensagens de erro mais específicas
+    if (error.code === 'ENOTFOUND') {
+      throw new Error('URL não encontrada. Verifique se o endereço está correto.');
+    } else if (error.code === 'ETIMEDOUT') {
+      throw new Error('Timeout ao carregar a página. Tente novamente em alguns segundos.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Página não encontrada (404). Verifique se a URL do produto está correta.');
+    } else if (error.response?.status === 403) {
+      throw new Error('Acesso negado pelo site. Tente copiar a URL diretamente da página do produto.');
+    } else if (error.response?.status >= 500) {
+      throw new Error('Erro no servidor do site. Tente novamente em alguns minutos.');
+    } else {
+      throw new Error(`Erro ao carregar produto: ${error.message}`);
+    }
   }
 }
 
-function extractShopifyProduct($) {
+function extractShopifyProduct($, url) {
+  // Múltiplos seletores para máxima compatibilidade
   const nameSelectors = [
     'h1.product-single__title',
     '.product__title',
@@ -81,7 +136,12 @@ function extractShopifyProduct($) {
     '.product-title',
     'h1.product_title',
     '.pdp-product-name',
-    'h1'
+    '.product-meta h1',
+    '.product-form__title',
+    'h1',
+    '.h1',
+    '[class*="product"][class*="title"] h1',
+    '[class*="product"][class*="name"]'
   ];
   
   const imageSelectors = [
@@ -90,7 +150,13 @@ function extractShopifyProduct($) {
     '.product-featured-image',
     '.product-gallery img',
     '.product-image-main img',
-    'img[data-image-id]'
+    'img[data-image-id]',
+    '.product-media img',
+    '.featured-image img',
+    '.product-image img',
+    'img[alt*="product"]',
+    '.gallery img:first-child',
+    '.product-photos img:first-child'
   ];
   
   const descSelectors = [
@@ -98,7 +164,11 @@ function extractShopifyProduct($) {
     '.product__description',
     '.rte',
     '.product-description',
-    '.product-details'
+    '.product-details',
+    '.product-content',
+    '.description',
+    '[class*="description"]',
+    '.product-meta .rte'
   ];
 
   let name = '';
@@ -107,43 +177,83 @@ function extractShopifyProduct($) {
 
   // Tentar múltiplos seletores para nome
   for (const selector of nameSelectors) {
-    const element = $(selector).first();
-    if (element.length && element.text().trim()) {
-      name = element.text().trim();
-      break;
+    try {
+      const element = $(selector).first();
+      if (element.length && element.text().trim()) {
+        name = element.text().trim();
+        console.log(`✅ Nome encontrado com seletor: ${selector}`);
+        break;
+      }
+    } catch (e) {
+      continue;
     }
   }
 
   // Tentar múltiplos seletores para imagem
   for (const selector of imageSelectors) {
-    const element = $(selector).first();
-    if (element.length && element.attr('src')) {
-      image = element.attr('src');
-      // Garantir URL completa
-      if (image.startsWith('//')) {
-        image = 'https:' + image;
-      } else if (image.startsWith('/')) {
-        image = 'https://cdn.shopify.com' + image;
+    try {
+      const element = $(selector).first();
+      if (element.length && element.attr('src')) {
+        image = element.attr('src');
+        
+        // Limpar e garantir URL completa
+        if (image.startsWith('//')) {
+          image = 'https:' + image;
+        } else if (image.startsWith('/')) {
+          // Extrair domínio da URL original
+          const urlObj = new URL(url);
+          image = `${urlObj.protocol}//${urlObj.hostname}${image}`;
+        } else if (!image.startsWith('http')) {
+          const urlObj = new URL(url);
+          image = `${urlObj.protocol}//${urlObj.hostname}/${image}`;
+        }
+        
+        console.log(`✅ Imagem encontrada com seletor: ${selector}`);
+        break;
       }
-      break;
+    } catch (e) {
+      continue;
     }
   }
 
   // Tentar múltiplos seletores para descrição
   for (const selector of descSelectors) {
-    const element = $(selector).first();
-    if (element.length && element.text().trim()) {
-      description = element.text().trim().substring(0, 300);
-      break;
+    try {
+      const element = $(selector).first();
+      if (element.length && element.text().trim()) {
+        description = element.text().trim().substring(0, 300);
+        console.log(`✅ Descrição encontrada com seletor: ${selector}`);
+        break;
+      }
+    } catch (e) {
+      continue;
     }
+  }
+
+  // Fallbacks usando meta tags
+  if (!name) {
+    name = $('meta[property="og:title"]').attr('content') || 
+           $('title').text().trim() || 
+           'Produto LED Line';
+  }
+  
+  if (!image) {
+    image = $('meta[property="og:image"]').attr('content') || '';
+  }
+  
+  if (!description) {
+    description = $('meta[name="description"]').attr('content') || 
+                 $('meta[property="og:description"]').attr('content') || 
+                 'Produto automotivo LED de alta qualidade';
   }
 
   return {
     name: name || 'Produto LED Line',
     description: description || 'Produto automotivo LED de alta qualidade',
     image: image || '',
-    price: $('.product-single__price, .price, .product__price').first().text().trim() || '',
-    vendor: $('.product-single__vendor, .product__vendor').first().text().trim() || 'LED Line BR Parts'
+    price: $('.product-single__price, .price, .product__price, .money, [class*="price"]').first().text().trim() || '',
+    vendor: $('.product-single__vendor, .product__vendor, .brand').first().text().trim() || 'LED Line BR Parts',
+    sourceUrl: url
   };
 }
 
@@ -167,13 +277,147 @@ function extractAmazonProduct($) {
   };
 }
 
-function extractGenericProduct($) {
+function extractGenericProduct($, url) {
+  console.log('🌐 Executando extração genérica...');
+  
+  // Seletores muito abrangentes para qualquer site
+  const nameSelectors = [
+    'h1',
+    '.title h1',
+    '.product-title',
+    '.item-title', 
+    '[class*="title"]:has(h1)',
+    '[class*="product"][class*="name"]',
+    '[class*="product"][class*="title"]',
+    '.name',
+    '.product-name',
+    'h2:first-of-type',
+    '.main-title'
+  ];
+  
+  const imageSelectors = [
+    '.product-image img',
+    '.main-image img',
+    '.featured-image img',
+    '.hero-image img',
+    '.gallery img:first-child',
+    '.product-gallery img:first-child',
+    'img[alt*="product"]',
+    'img[alt*="item"]',
+    '.image-container img',
+    '.product-photo img',
+    'img:not([class*="icon"]):not([class*="logo"])'
+  ];
+  
+  const descSelectors = [
+    '.description',
+    '.product-description',
+    '.item-description',
+    '.details',
+    '.content',
+    '.summary',
+    '[class*="description"]',
+    '.product-details',
+    '.info'
+  ];
+
+  let name = '';
+  let image = '';
+  let description = '';
+
+  // Buscar nome
+  for (const selector of nameSelectors) {
+    try {
+      const element = $(selector).first();
+      if (element.length && element.text().trim() && element.text().trim().length > 5) {
+        name = element.text().trim();
+        console.log(`✅ Nome genérico encontrado: ${name.substring(0, 50)}...`);
+        break;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+
+  // Buscar imagem
+  for (const selector of imageSelectors) {
+    try {
+      const elements = $(selector);
+      for (let i = 0; i < Math.min(elements.length, 5); i++) {
+        const img = elements.eq(i);
+        const src = img.attr('src') || img.attr('data-src') || img.attr('data-lazy');
+        
+        if (src && !src.includes('placeholder') && !src.includes('loading')) {
+          image = src;
+          
+          // Garantir URL absoluta
+          if (image.startsWith('//')) {
+            image = 'https:' + image;
+          } else if (image.startsWith('/')) {
+            const urlObj = new URL(url);
+            image = `${urlObj.protocol}//${urlObj.hostname}${image}`;
+          } else if (!image.startsWith('http')) {
+            const urlObj = new URL(url);
+            image = `${urlObj.protocol}//${urlObj.hostname}/${image}`;
+          }
+          
+          console.log(`✅ Imagem genérica encontrada: ${image.substring(0, 50)}...`);
+          break;
+        }
+      }
+      if (image) break;
+    } catch (e) {
+      continue;
+    }
+  }
+
+  // Buscar descrição
+  for (const selector of descSelectors) {
+    try {
+      const element = $(selector).first();
+      if (element.length && element.text().trim() && element.text().trim().length > 20) {
+        description = element.text().trim().substring(0, 300);
+        console.log(`✅ Descrição genérica encontrada: ${description.substring(0, 50)}...`);
+        break;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+
+  // Fallbacks com meta tags
+  if (!name) {
+    name = $('meta[property="og:title"]').attr('content') || 
+           $('meta[name="title"]').attr('content') ||
+           $('title').text().trim().split(' - ')[0] || 
+           'Produto Automotivo';
+  }
+  
+  if (!image) {
+    image = $('meta[property="og:image"]').attr('content') || 
+           $('meta[name="image"]').attr('content') || 
+           '';
+  }
+  
+  if (!description) {
+    description = $('meta[name="description"]').attr('content') || 
+                 $('meta[property="og:description"]').attr('content') || 
+                 'Produto automotivo de qualidade';
+  }
+
+  console.log('📋 Extração genérica concluída:', {
+    hasName: !!name,
+    hasImage: !!image,
+    hasDescription: !!description
+  });
+
   return {
-    name: $('h1, .product-title, .title, [class*="title"]').first().text().trim() || 'Produto',
-    description: $('meta[name="description"]').attr('content') || $('.description, [class*="description"]').first().text().trim().substring(0, 300) || 'Produto automotivo',
-    image: $('meta[property="og:image"]').attr('content') || $('img').first().attr('src') || '',
-    price: $('.price, .cost, .valor, [class*="price"]').first().text().trim() || '',
-    vendor: $('meta[property="og:site_name"]').attr('content') || ''
+    name: name || 'Produto Automotivo',
+    description: description || 'Produto automotivo de qualidade',
+    image: image || '',
+    price: $('.price, .cost, .valor, [class*="price"], .money').first().text().trim() || '',
+    vendor: $('meta[property="og:site_name"]').attr('content') || 'Loja Online',
+    sourceUrl: url
   };
 }
 
