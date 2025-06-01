@@ -1,4 +1,4 @@
-// server.js - LED Line BR Parts - Multipart Form-Data Corrigido
+// server.js - LED Line BR Parts - DALL-E 3 Generations (Compatível Vercel)
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -31,7 +31,7 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     hasOpenAI: !!process.env.OPENAI_API_KEY,
-    service: 'LED Line BR Parts Visualizer'
+    service: 'LED Line BR Parts Visualizer - DALL-E 3'
   });
 });
 
@@ -206,144 +206,134 @@ function detectLEDProductType(productName, productDescription) {
   return 'generic';
 }
 
-// Função para multipart form-data manual (compatível com Vercel)
-function createMultipartFormData(fields, files) {
-  const boundary = `----formdata-boundary-${Date.now()}`;
-  let formData = '';
-  
-  // Adicionar campos de texto
-  for (const [key, value] of Object.entries(fields)) {
-    formData += `--${boundary}\r\n`;
-    formData += `Content-Disposition: form-data; name="${key}"\r\n\r\n`;
-    formData += `${value}\r\n`;
+// Função para analisar imagem do carro usando GPT-4 Vision
+async function analyzeCarImage(carImageBase64) {
+  try {
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text", 
+              text: "Analyze this car image and describe: car type, color, angle/view, and overall appearance. Be specific but concise (max 100 words)."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: carImageBase64
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 150
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    return response.data.choices[0].message.content;
+  } catch (error) {
+    console.error('Erro na análise da imagem:', error.message);
+    // Fallback se não conseguir analisar
+    return "a modern car";
   }
-  
-  // Adicionar arquivos
-  for (const [key, file] of Object.entries(files)) {
-    formData += `--${boundary}\r\n`;
-    formData += `Content-Disposition: form-data; name="${key}"; filename="image.jpg"\r\n`;
-    formData += `Content-Type: image/jpeg\r\n\r\n`;
-    formData += file; // Aqui seria o buffer da imagem
-    formData += `\r\n`;
-  }
-  
-  formData += `--${boundary}--\r\n`;
-  
-  return {
-    data: formData,
-    contentType: `multipart/form-data; boundary=${boundary}`
-  };
 }
 
-// Função simplificada usando DALL-E 2 (mais compatível com Vercel)
-async function generateCarVisualizationDALLE2(carImageBase64, productName, productDescription) {
+// Função usando DALL-E 3 Generations (SEM multipart)
+async function generateCarVisualizationDALLE3(carImageBase64, productName, productDescription) {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('API Key da OpenAI não configurada');
   }
 
   try {
-    // Detectar tipo de produto LED para prompt específico
+    // Analisar imagem do carro primeiro
+    console.log('🔍 Analisando foto do carro...');
+    const carDescription = await analyzeCarImage(carImageBase64);
+    console.log('📋 Descrição do carro:', carDescription);
+    
+    // Detectar tipo de produto LED
     const productType = detectLEDProductType(productName, productDescription);
-    const prompt = getLEDPromptForDALLE2(productType, productName, productDescription);
     
-    console.log(`🎨 Gerando com DALL-E 2: ${productName} (Tipo: ${productType})`);
-    console.log(`📝 Prompt: ${prompt.substring(0, 150)}...`);
+    // Criar prompt detalhado para DALL-E 3
+    const prompt = createAdvancedPrompt(carDescription, productType, productName, productDescription);
     
-    // Converter base64 para buffer
-    const imageBuffer = Buffer.from(carImageBase64.replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
+    console.log(`🎨 Gerando com DALL-E 3: ${productName} (Tipo: ${productType})`);
+    console.log(`📝 Prompt: ${prompt.substring(0, 200)}...`);
     
-    // Criar boundary para multipart
-    const boundary = `----WebKitFormBoundary${Math.random().toString(16).substr(2)}`;
-    
-    // Construir dados multipart manualmente
-    let formData = '';
-    formData += `--${boundary}\r\n`;
-    formData += `Content-Disposition: form-data; name="image"; filename="car.png"\r\n`;
-    formData += `Content-Type: image/png\r\n\r\n`;
-    
-    // Criar payload como buffer
-    const header = Buffer.from(formData, 'utf8');
-    const footer = Buffer.from(`\r\n--${boundary}\r\n`, 'utf8');
-    
-    const promptPart = `Content-Disposition: form-data; name="prompt"\r\n\r\n${prompt}\r\n--${boundary}\r\n`;
-    const sizePart = `Content-Disposition: form-data; name="size"\r\n\r\n1024x1024\r\n--${boundary}\r\n`;
-    const nPart = `Content-Disposition: form-data; name="n"\r\n\r\n1\r\n--${boundary}--\r\n`;
-    
-    const promptBuffer = Buffer.from(promptPart, 'utf8');
-    const sizeBuffer = Buffer.from(sizePart, 'utf8');
-    const nBuffer = Buffer.from(nPart, 'utf8');
-    
-    // Combinar todos os buffers
-    const payload = Buffer.concat([
-      header,
-      imageBuffer,
-      footer,
-      promptBuffer,
-      sizeBuffer,
-      nBuffer
-    ]);
-    
-    // Chamar API DALL-E 2 Edits
-    const response = await axios.post('https://api.openai.com/v1/images/edits', payload, {
+    // Usar DALL-E 3 Generations (JSON simples)
+    const response = await axios.post('https://api.openai.com/v1/images/generations', {
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "standard",
+      style: "natural"
+    }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`
+        'Content-Type': 'application/json'
       },
-      timeout: 60000,
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      timeout: 60000
     });
     
     if (!response.data || !response.data.data || !response.data.data[0]) {
-      throw new Error('Resposta inválida do DALL-E 2');
+      throw new Error('Resposta inválida do DALL-E 3');
     }
     
-    // DALL-E 2 retorna URL
     const imageUrl = response.data.data[0].url;
     if (!imageUrl) {
-      throw new Error('Imagem não gerada pelo DALL-E 2');
+      throw new Error('Imagem não gerada pelo DALL-E 3');
     }
     
-    console.log('✅ Visualização DALL-E 2 gerada com sucesso');
+    console.log('✅ Visualização DALL-E 3 gerada com sucesso');
+    console.log('🔗 URL gerada:', imageUrl.substring(0, 50) + '...');
     
     return imageUrl;
     
   } catch (error) {
-    console.error('❌ Erro DALL-E 2 detalhado:', error.response?.data || error.message);
+    console.error('❌ Erro DALL-E 3 detalhado:', error.response?.data || error.message);
     
     if (error.response?.status === 401) {
       throw new Error('API Key da OpenAI inválida. Verifique suas configurações.');
     } else if (error.response?.status === 429) {
       throw new Error('Limite de uso da OpenAI atingido. Tente novamente em alguns minutos.');
     } else if (error.response?.status === 400) {
-      const errorMsg = error.response.data?.error?.message || 'Requisição inválida';
-      throw new Error(`Erro na requisição: ${errorMsg}`);
+      const errorMsg = error.response.data?.error?.message || 'Prompt inválido';
+      throw new Error(`Erro no prompt: ${errorMsg}`);
+    } else if (error.response?.status === 403) {
+      throw new Error('Acesso negado. Verifique se sua conta tem acesso ao DALL-E 3.');
     } else {
-      throw new Error(`Erro DALL-E 2: ${error.response?.data?.error?.message || error.message}`);
+      throw new Error(`Erro DALL-E 3: ${error.response?.data?.error?.message || error.message}`);
     }
   }
 }
 
-// Prompts otimizados para DALL-E 2
-function getLEDPromptForDALLE2(productType, productName, productDescription) {
-  const baseStyle = "Professional automotive installation, realistic lighting, high quality";
+// Criar prompt avançado baseado na análise do carro
+function createAdvancedPrompt(carDescription, productType, productName, productDescription) {
+  const baseStyle = "Photorealistic, high-quality automotive photography, professional lighting, detailed";
   
   const prompts = {
-    headlight: `${baseStyle}. Install LED headlights (${productName}) on this car, bright white modern headlights, clean installation`,
+    headlight: `${baseStyle}. Create an image of ${carDescription} with upgraded LED headlights (${productName}). The car should have modern, bright white LED headlights with a crisp, clean appearance and visible LED elements. The headlights should look professionally installed and significantly brighter than standard headlights. Maintain the car's original design while showcasing the premium LED technology. Show realistic lighting effects and proper beam pattern.`,
     
-    taillight: `${baseStyle}. Install LED taillights (${productName}) on this car, bright red LED lights, professional installation`,
+    taillight: `${baseStyle}. Create an image of ${carDescription} with upgraded LED taillights (${productName}). The car should have modern LED taillights with bright red illumination, clear lenses, and distinctive LED light patterns. The taillights should look factory-professional and maintain the vehicle's design language while adding a contemporary LED appearance. Show the LEDs as illuminated with proper light distribution.`,
     
-    lightbar: `${baseStyle}. Install LED light bar (${productName}) on this car, bright white LED bar, proper mounting`,
+    lightbar: `${baseStyle}. Create an image of ${carDescription} with an LED light bar (${productName}) professionally mounted. The LED light bar should be appropriately positioned on the roof, front bumper, or grille area and appear to emit bright white light. The mounting should look clean and integrated with the vehicle's design. Show realistic beam pattern and professional installation.`,
     
-    foglight: `${baseStyle}. Install LED fog lights (${productName}) on this car, bright white fog lights in bumper`,
+    foglight: `${baseStyle}. Create an image of ${carDescription} with LED fog lights (${productName}) installed in the front bumper. The LED fog lights should emit bright white light with proper beam pattern and be professionally integrated into the bumper design. The installation should look factory-quality with clean mounting and proper alignment.`,
     
-    indicator: `${baseStyle}. Install LED turn signals (${productName}) on this car, bright amber LED indicators`,
+    indicator: `${baseStyle}. Create an image of ${carDescription} with LED turn signal indicators (${productName}). The car should have modern LED turn signals that emit bright amber light with crisp LED patterns. The indicators should be positioned where original turn signals are located and maintain proper visibility while adding a modern LED appearance.`,
     
-    interior: `${baseStyle}. Install LED interior lighting (${productName}) in this car, ambient LED lighting`,
+    interior: `${baseStyle}. Create an image of ${carDescription} with LED interior ambient lighting (${productName}). Show the car's interior with subtle LED lighting in areas like footwells, door panels, or dashboard trim. The lighting should create a premium atmosphere with even light distribution and appear professionally installed.`,
     
-    license: `${baseStyle}. Install LED license plate lights (${productName}) on this car, bright license illumination`,
+    license: `${baseStyle}. Create an image of ${carDescription} with LED license plate lighting (${productName}). The rear of the car should have bright, even LED illumination for the license plate area that provides excellent visibility. The LED lights should be properly positioned and integrated with the vehicle's rear design.`,
     
-    generic: `${baseStyle}. Install ${productName} LED product on this car, professional automotive installation`
+    generic: `${baseStyle}. Create an image of ${carDescription} with ${productName} LED automotive product installed. The installation should look professional, maintain the car's original design aesthetic, and showcase LED technology with realistic lighting effects. Show proper integration and realistic appearance based on the product type.`
   };
   
   return prompts[productType] || prompts.generic;
@@ -386,7 +376,7 @@ app.post('/api/extract-product', async (req, res) => {
   }
 });
 
-// Rota para gerar visualização com DALL-E 2
+// Rota para gerar visualização com DALL-E 3
 app.post('/api/generate-visualization', async (req, res) => {
   try {
     const { carImageBase64, productName, productDescription } = req.body;
@@ -404,28 +394,28 @@ app.post('/api/generate-visualization', async (req, res) => {
       });
     }
     
-    console.log(`🎨 Iniciando visualização DALL-E 2: ${productName}`);
+    console.log(`🎨 Iniciando visualização DALL-E 3: ${productName}`);
     
-    // Gerar visualização com DALL-E 2
-    const resultImageUrl = await generateCarVisualizationDALLE2(
+    // Gerar visualização com DALL-E 3
+    const resultImageUrl = await generateCarVisualizationDALLE3(
       carImageBase64, 
       productName,
       productDescription || 'produto LED automotivo LED Line BR Parts'
     );
     
     // Log para analytics
-    console.log(`📊 Visualização DALL-E 2 concluída: ${productName} - ${new Date().toISOString()}`);
+    console.log(`📊 Visualização DALL-E 3 concluída: ${productName} - ${new Date().toISOString()}`);
     
     res.json({
       success: true,
       resultImage: resultImageUrl,
       productName: productName,
-      model: 'dall-e-2',
-      message: 'Visualização LED Line criada com DALL-E 2!'
+      model: 'dall-e-3',
+      message: 'Visualização LED Line criada com DALL-E 3!'
     });
     
   } catch (error) {
-    console.error('❌ Erro na visualização DALL-E 2:', error.message);
+    console.error('❌ Erro na visualização DALL-E 3:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -450,7 +440,7 @@ app.get('/api/test-openai', async (req, res) => {
     // Verificar modelos disponíveis
     const models = response.data.data.map(model => model.id);
     const imageModels = models.filter(model => 
-      model.includes('dall-e') || model.includes('gpt-image')
+      model.includes('dall-e') || model.includes('gpt-4o')
     );
     
     res.json({
@@ -458,7 +448,8 @@ app.get('/api/test-openai', async (req, res) => {
       message: 'OpenAI API funcionando',
       totalModels: models.length,
       imageModels: imageModels,
-      usingModel: 'dall-e-2'
+      usingModel: 'dall-e-3 + gpt-4o-mini',
+      strategy: 'generations (não edits)'
     });
     
   } catch (error) {
@@ -484,9 +475,9 @@ if (process.env.VERCEL) {
 } else {
   // Para desenvolvimento local
   app.listen(PORT, () => {
-    console.log(`🚀 LED Line Visualizer DALL-E 2 rodando na porta ${PORT}`);
+    console.log(`🚀 LED Line Visualizer DALL-E 3 rodando na porta ${PORT}`);
     console.log(`🌐 Acesse: http://localhost:${PORT}`);
     console.log(`🔑 OpenAI configurada: ${!!process.env.OPENAI_API_KEY}`);
-    console.log(`🎨 Usando DALL-E 2 para visualizações!`);
+    console.log(`🎨 Usando DALL-E 3 + GPT-4o-mini para visualizações!`);
   });
 }
