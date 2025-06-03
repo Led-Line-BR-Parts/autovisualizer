@@ -3,754 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LED Line BR Parts - Visualizador Automotivo</title>
-    <meta name="description" content="Visualize produtos automotivos da LED Line no seu carro usando inteligência artificial">
-    
+    <title>LED Line BR Parts - Visualizador</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #13838b 0%, #0f6b73 50%, #0a5459 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-
-        .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 15px 0;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-
-        .nav-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0 20px;
-        }
-
-        .logo {
-            font-size: 2.2em;
-            font-weight: bold;
-            color: #13838b;
-            text-decoration: none;
-            text-align: center;
-        }
-
-        .logo .highlight {
-            color: #0f6b73;
-            font-weight: 900;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        .hero {
-            text-align: center;
-            color: white;
-            margin-bottom: 60px;
-        }
-
-        .hero h1 {
-            font-size: 3em;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .hero p {
-            font-size: 1.2em;
-            margin-bottom: 30px;
-            opacity: 0.9;
-        }
-
-        .main-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.1);
-            overflow: hidden;
-            margin-bottom: 40px;
-        }
-
-        .card-header {
-            background: linear-gradient(135deg, #13838b, #0f6b73);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .card-content {
-            padding: 40px;
-        }
-
-        .url-detected {
-            background: #e8f5e8;
-            border: 2px solid #13838b;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-
-        .url-detected h3 {
-            color: #13838b;
-            margin-bottom: 10px;
-        }
-
-        .product-input-section {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .product-url-input {
-            flex: 1;
-            min-width: 300px;
-            padding: 15px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1em;
-            transition: all 0.3s ease;
-        }
-
-        .product-url-input:focus {
-            outline: none;
-            border-color: #13838b;
-            box-shadow: 0 0 15px rgba(19, 131, 139, 0.2);
-        }
-
-        .load-btn, .upload-btn, .generate-btn {
-            background: linear-gradient(135deg, #13838b, #0f6b73);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .load-btn:hover, .upload-btn:hover, .generate-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(19, 131, 139, 0.3);
-        }
-
-        .generate-btn {
-            padding: 20px 50px;
-            font-size: 1.2em;
-            margin: 30px auto;
-            display: block;
-        }
-
-        .generate-btn:disabled {
-            background: #bdc3c7;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .upload-sections {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-top: 30px;
-        }
-
-        .upload-section {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            border: 3px dashed #13838b;
-            transition: all 0.3s ease;
-        }
-
-        .upload-section:hover {
-            border-color: #0f6b73;
-            background: #f0f8ff;
-        }
-
-        .preview-container {
-            margin-top: 20px;
-        }
-
-        .preview-image {
-            max-width: 100%;
-            max-height: 250px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 40px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            margin: 30px 0;
-        }
-
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid #13838b;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .result-section {
-            display: none;
-            background: linear-gradient(135deg, #13838b, #0f6b73);
-            color: white;
-            padding: 40px;
-            border-radius: 15px;
-            text-align: center;
-            margin: 30px 0;
-        }
-
-        .result-image {
-            max-width: 100%;
-            max-height: 500px;
-            border-radius: 10px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-            margin: 20px 0;
-        }
-
-        .action-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .action-btn:hover {
-            background: white;
-            color: #13838b;
-        }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #13838b;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            z-index: 1001;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-        }
-
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.error {
-            background: #e74c3c;
-        }
-
-        .footer {
-            background: rgba(0,0,0,0.8);
-            color: white;
-            text-align: center;
-            padding: 30px 20px;
-            margin-top: 60px;
-        }
-
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.2em;
-            }
-
-            .upload-sections {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-
-            .input-group {
-                flex-direction: column;
-            }
-
-            .product-url-input {
-                min-width: auto;
-            }
-
-            .logo {
-                font-size: 1.8em;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #13838b, #0f6b73); min-height: 100vh; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .card { background: white; border-radius: 15px; padding: 30px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .upload-section { border: 3px dashed #13838b; border-radius: 15px; padding: 30px; text-align: center; margin: 20px 0; }
+        .btn { background: linear-gradient(135deg, #13838b, #0f6b73); color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 16px; cursor: pointer; margin: 10px 5px; transition: all 0.3s; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(19, 131, 139, 0.3); }
+        .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .file-input { display: none; }
+        .preview-img { max-width: 100%; max-height: 200px; border-radius: 10px; margin: 10px 0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .loading { display: none; text-align: center; padding: 30px; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #13838b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .result { display: none; background: linear-gradient(135deg, #13838b, #0f6b73); color: white; padding: 30px; border-radius: 15px; text-align: center; }
+        .result img { max-width: 100%; border-radius: 10px; margin: 20px 0; }
+        .notification { position: fixed; top: 20px; right: 20px; background: #13838b; color: white; padding: 15px 25px; border-radius: 10px; z-index: 1000; transform: translateX(400px); transition: transform 0.3s; }
+        .notification.show { transform: translateX(0); }
+        .notification.error { background: #e74c3c; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .header h1 { font-size: 2em; } }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="logo">
-                LED LINE <span class="highlight">BR PARTS</span>
-                <div style="font-size: 0.4em; font-weight: normal; margin-top: 5px;">Visualizador Automotivo com IA</div>
-            </div>
-        </div>
-    </nav>
-
     <div class="container">
-        <div class="hero">
-            <h1>🚗 Visualize no Seu Carro</h1>
-            <p>Veja como nossos produtos LED ficam instalados no seu veículo usando Inteligência Artificial</p>
+        <div class="header">
+            <h1>🚗 LED Line BR Parts</h1>
+            <p>Visualizador Automotivo com IA</p>
         </div>
 
-        <div class="main-card">
-            <div class="card-header">
-                <h2>✨ Visualização Realística com IA</h2>
-                <p>Faça upload do produto e da foto do seu carro</p>
+        <div class="card">
+            <h2 style="text-align: center; margin-bottom: 30px; color: #13838b;">✨ Visualize Produtos no Seu Carro</h2>
+            
+            <!-- Produtos -->
+            <div class="upload-section">
+                <h3 style="color: #13838b; margin-bottom: 20px;">📦 1. Produto LED</h3>
+                <button class="btn" onclick="document.getElementById('productFile').click()">
+                    📸 Upload Foto do Produto
+                </button>
+                <input type="file" id="productFile" class="file-input" accept="image/*" onchange="handleProductUpload(event)">
+                <div id="productPreview"></div>
             </div>
 
-            <div class="card-content">
-                <!-- Detecção de produto via URL -->
-                <div id="urlDetected" class="url-detected" style="display: none;">
-                    <h3>🎯 Produto Detectado!</h3>
-                    <p>Produto carregado automaticamente da loja LED Line BR Parts</p>
-                </div>
+            <!-- Carro -->
+            <div class="upload-section">
+                <h3 style="color: #13838b; margin-bottom: 20px;">🚗 2. Foto do Seu Carro</h3>
+                <button class="btn" onclick="document.getElementById('carFile').click()">
+                    📸 Upload Foto do Carro
+                </button>
+                <input type="file" id="carFile" class="file-input" accept="image/*" onchange="handleCarUpload(event)">
+                <div id="carPreview"></div>
+            </div>
 
-                <!-- Input de URL do produto -->
-                <div class="product-input-section">
-                    <h3 style="margin-bottom: 20px; color: #13838b;">📦 1. Adicionar Produto</h3>
-                    
-                    <div class="input-group">
-                        <input 
-                            type="url" 
-                            id="productUrl" 
-                            class="product-url-input" 
-                            placeholder="Cole o link do produto da LED Line (opcional)"
-                        >
-                        <button class="load-btn" onclick="loadProductFromUrl()">
-                            📦 Carregar Produto
-                        </button>
-                    </div>
-
-                    <div style="text-align: center; margin: 20px 0;">
-                        <strong>OU</strong>
-                    </div>
-
-                    <div style="text-align: center;">
-                        <button class="upload-btn" onclick="document.getElementById('productImageInput').click()">
-                            📸 Upload Foto do Produto
-                        </button>
-                        <input type="file" id="productImageInput" class="file-input" accept="image/*" onchange="handleProductImageUpload(event)">
-                        <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
-                            Formatos: JPG, PNG, WEBP (máx. 5MB)
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Seções de Upload -->
-                <div class="upload-sections">
-                    <!-- Upload do Carro -->
-                    <div class="upload-section">
-                        <h3 style="color: #13838b; margin-bottom: 15px;">🚗 2. Foto do Seu Carro</h3>
-                        <p style="color: #666; margin-bottom: 20px;">Faça upload de uma foto clara do seu veículo</p>
-                        <button class="upload-btn" onclick="document.getElementById('carImageInput').click()">
-                            📸 Escolher Foto do Carro
-                        </button>
-                        <input type="file" id="carImageInput" class="file-input" accept="image/*" onchange="handleCarImageUpload(event)">
-                        <div id="carPreview" class="preview-container"></div>
-                    </div>
-
-                    <!-- Produto Selecionado -->
-                    <div class="upload-section">
-                        <h3 style="color: #13838b; margin-bottom: 15px;">⚡ 3. Produto LED Selecionado</h3>
-                        <div id="selectedProduct">
-                            <p style="color: #666; margin: 20px 0;">Adicione um produto primeiro</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Botão Gerar -->
-                <button class="generate-btn" id="generateBtn" onclick="generateVisualization()" disabled>
+            <!-- Gerar -->
+            <div style="text-align: center; margin: 30px 0;">
+                <button class="btn" id="generateBtn" onclick="generateVisualization()" disabled style="font-size: 18px; padding: 20px 40px;">
                     ✨ Gerar Visualização com IA
                 </button>
+            </div>
 
-                <!-- Loading -->
-                <div class="loading" id="loadingSection">
-                    <div class="spinner"></div>
-                    <h3 style="color: #13838b;">🤖 IA Processando...</h3>
-                    <p>Instalando o produto LED no seu carro virtualmente...</p>
-                </div>
+            <!-- Loading -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <h3>🤖 IA Processando...</h3>
+                <p>Criando visualização realística...</p>
+            </div>
 
-                <!-- Resultado -->
-                <div class="result-section" id="resultSection">
-                    <h2>🎉 Visualização Concluída!</h2>
-                    <p>Veja como ficou o produto LED Line instalado no seu carro:</p>
-                    <img id="resultImage" class="result-image" alt="Resultado">
-                    <div class="action-buttons">
-                        <button class="action-btn" onclick="downloadResult()">📥 Baixar</button>
-                        <button class="action-btn" onclick="shareResult()">📤 Compartilhar</button>
-                        <button class="action-btn" onclick="resetApp()">🔄 Nova Visualização</button>
-                        <a href="#" class="action-btn" id="buyProductBtn" target="_blank" style="display: none;">🛒 Comprar na LED Line</a>
-                    </div>
+            <!-- Resultado -->
+            <div class="result" id="result">
+                <h2>🎉 Visualização Concluída!</h2>
+                <img id="resultImg" alt="Resultado">
+                <div>
+                    <button class="btn" onclick="downloadResult()">📥 Baixar</button>
+                    <button class="btn" onclick="shareResult()">📤 Compartilhar</button>
+                    <button class="btn" onclick="resetApp()">🔄 Nova Visualização</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="footer">
-        <p>&copy; 2025 LED Line BR Parts - Visualizador Automotivo</p>
-        <p>Tecnologia de IA para visualização realística de produtos automotivos</p>
-    </div>
-
-    <!-- Notificação -->
     <div class="notification" id="notification"></div>
 
     <script>
-        let selectedProduct = null;
-        let carImageData = null;
+        let productData = null;
+        let carData = null;
 
-        // Verificar parâmetros da URL (vindo do Shopify)
-        function checkUrlParameters() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const productImg = urlParams.get('product_img');
-            const productName = urlParams.get('product_name');
-            const productDesc = urlParams.get('product_desc');
-            const sourceUrl = urlParams.get('source_url');
-
-            if (productImg && productName) {
-                document.getElementById('urlDetected').style.display = 'block';
+        // Comprimir imagem para máximo 2MB
+        function compressImage(file, maxSizeMB = 2) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
                 
-                const productData = {
-                    name: decodeURIComponent(productName),
-                    image: decodeURIComponent(productImg),
-                    description: productDesc ? decodeURIComponent(productDesc) : 'Produto LED Line',
-                    sourceUrl: sourceUrl ? decodeURIComponent(sourceUrl) : null
+                img.onload = function() {
+                    // Calcular novo tamanho
+                    let { width, height } = img;
+                    const maxDimension = 1024;
+                    
+                    if (width > height && width > maxDimension) {
+                        height = (height * maxDimension) / width;
+                        width = maxDimension;
+                    } else if (height > maxDimension) {
+                        width = (width * maxDimension) / height;
+                        height = maxDimension;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Desenhar imagem redimensionada
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Converter para base64 com qualidade ajustada
+                    let quality = 0.8;
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    
+                    // Reduzir qualidade se ainda estiver grande
+                    while (dataUrl.length > maxSizeMB * 1024 * 1024 * 1.37 && quality > 0.1) {
+                        quality -= 0.1;
+                        dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    }
+                    
+                    resolve(dataUrl);
                 };
-
-                selectProductData(productData);
-                showNotification('✅ Produto LED Line carregado automaticamente!');
-            }
-        }
-
-        function loadProductFromUrl() {
-            const url = document.getElementById('productUrl').value.trim();
-            if (!url) {
-                showNotification('❌ Por favor, insira uma URL válida', 'error');
-                return;
-            }
-
-            showNotification('🔄 Carregando produto...');
-            
-            fetch('/api/extract-product', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ url: url })
-            })
-            .then(response => {
-                console.log('📡 Response status:', response.status);
-                console.log('📡 Response headers:', response.headers);
                 
-                // Verificar se a resposta é JSON válida
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        console.error('❌ Response error text:', text);
-                        throw new Error(`HTTP ${response.status}: ${text}`);
-                    });
-                }
-                
-                // Verificar content-type
-                const contentType = response.headers.get('content-type');
-                console.log('📡 Content-Type:', contentType);
-                
-                if (!contentType || !contentType.includes('application/json')) {
-                    return response.text().then(text => {
-                        console.error('❌ Response is not JSON:', text.substring(0, 200));
-                        throw new Error('Servidor retornou resposta inválida (não JSON)');
-                    });
-                }
-                
-                return response.json();
-            })
-            .then(data => {
-                console.log('✅ Dados recebidos:', data);
-                
-                if (data.success) {
-                    selectProductData(data.product);
-                    showNotification('✅ Produto carregado com sucesso!');
-                } else {
-                    throw new Error(data.error || 'Erro desconhecido');
-                }
-            })
-            .catch(error => {
-                console.error('❌ Erro completo:', error);
-                console.error('❌ Error stack:', error.stack);
-                
-                let errorMessage = error.message;
-                
-                // Tratar erros específicos
-                if (errorMessage.includes('JSON.parse')) {
-                    errorMessage = 'Erro interno do servidor. Tente novamente em alguns segundos.';
-                } else if (errorMessage.includes('NetworkError') || errorMessage.includes('fetch')) {
-                    errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
-                } else if (errorMessage.includes('404')) {
-                    errorMessage = 'Página não encontrada. Verifique se a URL está correta.';
-                } else if (errorMessage.includes('403')) {
-                    errorMessage = 'Acesso negado. Tente usar a URL direta do produto.';
-                }
-                
-                showNotification('❌ Erro ao carregar produto: ' + errorMessage, 'error');
+                img.src = URL.createObjectURL(file);
             });
         }
 
-        function handleProductImageUpload(event) {
+        async function handleProductUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            if (file.size > 5 * 1024 * 1024) {
-                showNotification('❌ Imagem muito grande. Máximo 5MB', 'error');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const productData = {
-                    name: 'Produto LED Personalizado',
-                    image: e.target.result,
-                    description: 'Produto LED carregado pelo usuário',
-                    sourceUrl: null
-                };
+            try {
+                showNotification('🔄 Processando imagem do produto...');
+                const compressedImage = await compressImage(file, 2);
                 
-                selectProductData(productData);
-                showNotification('✅ Produto carregado!');
-            };
-            reader.readAsDataURL(file);
-        }
+                productData = {
+                    name: 'Produto LED Line',
+                    description: 'Produto automotivo LED de alta qualidade',
+                    image: compressedImage
+                };
 
-        function selectProductData(productData) {
-            selectedProduct = productData;
-            
-            document.getElementById('selectedProduct').innerHTML = `
-                <img src="${productData.image}" alt="${productData.name}" class="preview-image">
-                <h4 style="color: #13838b; margin: 10px 0;">${productData.name}</h4>
-                <p style="color: #666; font-size: 0.9em;">${productData.description}</p>
-                <div style="margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 8px;">
-                    <p style="color: #13838b; font-weight: bold; margin: 0;">✅ Produto Selecionado</p>
-                </div>
-            `;
+                document.getElementById('productPreview').innerHTML = `
+                    <img src="${compressedImage}" class="preview-img" alt="Produto">
+                    <p style="color: #13838b; font-weight: bold;">✅ Produto Carregado</p>
+                `;
 
-            if (productData.sourceUrl) {
-                document.getElementById('buyProductBtn').href = productData.sourceUrl;
-                document.getElementById('buyProductBtn').style.display = 'inline-block';
+                updateGenerateButton();
+                showNotification('✅ Produto carregado com sucesso!');
+            } catch (error) {
+                showNotification('❌ Erro ao processar imagem do produto', 'error');
             }
-
-            updateGenerateButton();
         }
 
-        function handleCarImageUpload(event) {
+        async function handleCarUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            if (file.size > 5 * 1024 * 1024) {
-                showNotification('❌ Imagem muito grande. Máximo 5MB', 'error');
-                return;
-            }
+            try {
+                showNotification('🔄 Processando imagem do carro...');
+                const compressedImage = await compressImage(file, 2);
+                
+                carData = compressedImage;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                carImageData = e.target.result;
                 document.getElementById('carPreview').innerHTML = `
-                    <img src="${carImageData}" class="preview-image" alt="Seu carro">
-                    <div style="margin-top: 10px; padding: 10px; background: #e8f5e8; border-radius: 8px;">
-                        <p style="color: #13838b; font-weight: bold; margin: 0;">✅ Foto do Carro Carregada</p>
-                    </div>
+                    <img src="${compressedImage}" class="preview-img" alt="Carro">
+                    <p style="color: #13838b; font-weight: bold;">✅ Carro Carregado</p>
                 `;
+
                 updateGenerateButton();
                 showNotification('✅ Foto do carro carregada!');
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                showNotification('❌ Erro ao processar imagem do carro', 'error');
+            }
         }
 
         function updateGenerateButton() {
             const btn = document.getElementById('generateBtn');
-            if (selectedProduct && carImageData) {
+            if (productData && carData) {
                 btn.disabled = false;
                 btn.textContent = '✨ Gerar Visualização com IA';
                 btn.style.background = 'linear-gradient(135deg, #13838b, #0f6b73)';
             } else {
                 btn.disabled = true;
-                btn.textContent = `${!selectedProduct ? '📦 Selecione um produto LED' : '📸 Adicione foto do carro'}`;
-                btn.style.background = '#bdc3c7';
+                btn.textContent = `${!productData ? '📦 Carregue produto' : '🚗 Carregue foto do carro'}`;
+                btn.style.background = '#ccc';
             }
         }
 
         async function generateVisualization() {
-            if (!selectedProduct || !carImageData) {
-                showNotification('❌ Selecione produto e foto do carro', 'error');
+            if (!productData || !carData) {
+                showNotification('❌ Carregue produto e foto do carro', 'error');
                 return;
             }
 
-            // Mostrar loading
-            document.getElementById('loadingSection').style.display = 'block';
-            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
 
             try {
-                console.log('🎨 Iniciando geração de visualização...');
-                console.log('📦 Produto:', selectedProduct.name);
-                console.log('📸 Imagem do carro:', carImageData ? 'OK' : 'MISSING');
-                
+                console.log('🎨 Iniciando geração...');
+
                 const response = await fetch('/api/generate-visualization', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        carImageBase64: carImageData,
-                        productName: selectedProduct.name,
-                        productDescription: selectedProduct.description
+                        carImageBase64: carData,
+                        productName: productData.name,
+                        productDescription: productData.description
                     })
                 });
 
-                console.log('📡 Response status:', response.status);
-                console.log('📡 Response ok:', response.ok);
+                console.log('Response status:', response.status);
 
-                // Verificar se a resposta é válida
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('❌ Error response:', errorText);
-                    throw new Error(`Erro HTTP ${response.status}: ${errorText}`);
-                }
-
-                // Verificar content-type
-                const contentType = response.headers.get('content-type');
-                console.log('📡 Content-Type:', contentType);
-                
-                if (!contentType || !contentType.includes('application/json')) {
-                    const responseText = await response.text();
-                    console.error('❌ Non-JSON response:', responseText.substring(0, 300));
-                    throw new Error('Servidor retornou resposta inválida');
+                    throw new Error(`Erro ${response.status}: ${errorText}`);
                 }
 
                 const result = await response.json();
-                console.log('✅ Resultado recebido:', result);
+                console.log('Resultado:', result);
 
                 if (!result.success) {
-                    throw new Error(result.error || 'Erro desconhecido na geração');
+                    throw new Error(result.error);
                 }
-                
-                // Mostrar resultado
-                document.getElementById('resultImage').src = result.resultImage;
-                document.getElementById('loadingSection').style.display = 'none';
-                document.getElementById('resultSection').style.display = 'block';
-                
-                // Scroll para resultado
-                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
-                
-                showNotification('🎉 Visualização LED Line criada com sucesso!');
+
+                document.getElementById('resultImg').src = result.resultImage;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+
+                showNotification('🎉 Visualização criada com sucesso!');
 
             } catch (error) {
-                console.error('❌ Erro completo:', error);
-                console.error('❌ Error name:', error.name);
-                console.error('❌ Error message:', error.message);
+                console.error('Erro:', error);
+                document.getElementById('loading').style.display = 'none';
                 
-                document.getElementById('loadingSection').style.display = 'none';
-                
-                let userMessage = error.message;
-                
-                // Mensagens mais amigáveis
-                if (userMessage.includes('JSON.parse')) {
-                    userMessage = 'Erro interno do servidor. Tente novamente.';
-                } else if (userMessage.includes('NetworkError') || userMessage.includes('fetch')) {
-                    userMessage = 'Erro de conexão. Verifique sua internet.';
-                } else if (userMessage.includes('timeout')) {
-                    userMessage = 'Processamento demorou muito. Tente novamente.';
-                } else if (userMessage.includes('API Key')) {
-                    userMessage = 'Erro de configuração do servidor. Contate o suporte.';
+                let message = error.message;
+                if (message.includes('API Key')) {
+                    message = 'Erro de configuração. Contate o suporte.';
+                } else if (message.includes('timeout')) {
+                    message = 'Processamento demorou muito. Tente novamente.';
                 }
                 
-                showNotification('❌ Erro: ' + userMessage, 'error');
+                showNotification('❌ ' + message, 'error');
             }
         }
 
         function downloadResult() {
             const link = document.createElement('a');
-            link.download = `meu_carro_ledline_${selectedProduct.name.toLowerCase().replace(/\s+/g, '_')}.png`;
-            link.href = document.getElementById('resultImage').src;
+            link.download = 'carro_led_line.png';
+            link.href = document.getElementById('resultImg').src;
             link.click();
-            
             showNotification('📥 Download iniciado!');
         }
 
         function shareResult() {
             if (navigator.share) {
                 navigator.share({
-                    title: `Meu carro com ${selectedProduct.name} - LED Line`,
-                    text: 'Veja como ficou meu carro com produtos LED Line!',
+                    title: 'Meu carro com LED Line BR Parts',
+                    text: 'Veja como ficou!',
                     url: window.location.href
                 });
             } else {
-                const text = encodeURIComponent(`Veja como ficou meu carro com ${selectedProduct.name} da LED Line! Visualização criada em:`);
-                const url = encodeURIComponent(window.location.href);
-                window.open(`https://api.whatsapp.com/send?text=${text} ${url}`, '_blank');
+                const text = encodeURIComponent('Veja como ficou meu carro com LED Line BR Parts!');
+                window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
             }
         }
 
         function resetApp() {
-            selectedProduct = null;
-            carImageData = null;
-            
-            document.getElementById('carImageInput').value = '';
-            document.getElementById('productImageInput').value = '';
-            document.getElementById('productUrl').value = '';
+            productData = null;
+            carData = null;
+            document.getElementById('productFile').value = '';
+            document.getElementById('carFile').value = '';
+            document.getElementById('productPreview').innerHTML = '';
             document.getElementById('carPreview').innerHTML = '';
-            document.getElementById('selectedProduct').innerHTML = '<p style="color: #666; margin: 20px 0;">Adicione um produto primeiro</p>';
-            document.getElementById('resultSection').style.display = 'none';
-            document.getElementById('urlDetected').style.display = 'none';
-            
+            document.getElementById('result').style.display = 'none';
             updateGenerateButton();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -763,13 +295,8 @@
             
             setTimeout(() => {
                 notification.classList.remove('show');
-            }, 4000);
+            }, 3000);
         }
-
-        // Inicializar
-        document.addEventListener('DOMContentLoaded', function() {
-            checkUrlParameters();
-        });
     </script>
 </body>
 </html>
